@@ -113,8 +113,18 @@ library/
 │   └── S6/
 │       └── ...
 ├── BO7/
-│   └── S0/
-│       └── ...
+│   ├── S0/
+│   │   └── ...
+│   └── S3/
+│       ├── BO7_S3.lnk
+│       ├── BO7_S3_pre.txt              # Competitive (default)
+│       ├── BO7_S3_pre_clean.txt
+│       ├── BO7_S3_pre_streamer.txt
+│       ├── BO7_S3_pre_ultra.txt
+│       ├── BO7_S3_post.txt
+│       ├── BO7_Target_S3.txt
+│       ├── LEQ - Release Time 2 (Insta).txt
+│       └── eq/
 └── measurements/
     ├── README.md                      # Usage instructions
     └── Brand Model.txt                # Headphone frequency response (squig.link format)
@@ -146,6 +156,41 @@ The `hrir/` folder in this repo contains the EAC_Default.wav HRIR in two sample 
 
 These are automatically downloaded by the install script. If adding them manually, copy the `hrir/` folder contents into `C:\Program Files\EqualizerAPO\config\HeSuVi\hrir\`.
 
+## JSFX Plugins
+
+Two custom audio processing plugins are included in the `jsfx/` folder:
+
+- **ATK Spatial Engine** (`atk_spatial_engine.jsfx`) -- processes raw 7.1 game audio before HeSuVi. Separates footsteps from gunfire and ambient noise across all surround channels, suppresses your own sounds (gun, reload, movement), and adapts processing intensity based on what's happening in the scene. 59 parameters.
+- **ATK Stereo Spatial Enhancer** (`atk_stereo_spatial_enhancer.jsfx`) -- processes stereo headphone output after HeSuVi. Tightens the spatial image by cleaning up crossfeed bleed from HRIR convolution, keeps bass centered, and widens the stereo field for sharper directional cues. 7 parameters.
+
+The BO7 S3 configs require these plugins to function. They are installed to `C:\Program Files\VSTPlugins\ReaPlugs\JS\Effects\ArtTuneKit\`.
+
+- **New installs:** plugins are included automatically when you run the install script.
+- **Existing users:** run the install script again and choose `[j] Install JSFX plugins only` from the main menu.
+
+<p align="center">
+  <img src="Assets/ATK-Spatial-Engine.png" alt="ATK Spatial Engine" width="560" />
+</p>
+
+<p align="center">
+  <img src="Assets/atk-Stereo-Spatial-Enhancer.png" alt="ATK Stereo Spatial Enhancer" width="560" />
+</p>
+
+## Tune Variations
+
+BO7 S3 ships with four pre-HeSuVi config variations. Each uses the same Spatial Engine and Stereo Enhancer but with different parameter tuning:
+
+| Variation | File | Description |
+|-----------|------|-------------|
+| **Competitive** (default) | `BO7_S3_pre.txt` | Aggressive suppression, heavy noise removal, maximum footstep separation. |
+| **Clean** | `BO7_S3_pre_clean.txt` | Lighter processing, more natural spatial image, less artificial boost. |
+| **Streamer** | `BO7_S3_pre_streamer.txt` | Gun stays punchy, environment has presence, entertaining mix for content. |
+| **Ultra** (experimental) | `BO7_S3_pre_ultra.txt` | Maximum footstep extraction, everything cranked. Sounds processed but every step pops. |
+
+**Manual users:** swap the pre file path in your `config.txt` to change variation.
+
+**App users:** select the variation from the status bar or right-click a profile.
+
 ## Configuration
 
 ### Pre and Post HeSuVi Files
@@ -168,12 +213,12 @@ The installer writes a starter `config.txt` (located at `C:\Program Files\Equali
 
 ```
 # PRE HESUVI
-Include: ArtTuneDB\library\BO7\S0\BO7_S0_pre.txt
+Include: ArtTuneDB\library\BO7\S3\BO7_S3_pre.txt
 # DO NOT REMOVE HESUVI #
 Include: HeSuVi\hesuvi.txt
-Include: ArtTuneDB\library\BO7\S0\eq\YourHeadphone_BO7_S0.txt
+Include: ArtTuneDB\library\BO7\S3\eq\YourHeadphone_BO7_S3.txt
 # POST HESUVI
-Include: ArtTuneDB\library\BO7\S0\BO7_S0_post.txt
+Include: ArtTuneDB\library\BO7\S3\BO7_S3_post.txt
 ```
 
 The order matters -- pre, HeSuVi, EQ, post. Do not remove the HeSuVi comment or include line.

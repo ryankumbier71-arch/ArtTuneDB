@@ -19,7 +19,7 @@ $ErrorActionPreference = 'Stop'
 # PS 5.1 perf: IWR progress bars tank download speed dramatically
 $ProgressPreference = 'SilentlyContinue'
 
-$script:Version = "1.0"
+$script:Version = "1.1"
 # Resolve 8.3 short names (e.g. LEDZIU~1) to long form for BITS compatibility
 $tempParent = $env:TEMP
 if (Test-Path $tempParent) { $tempParent = (Get-Item $tempParent).FullName }
@@ -91,7 +91,7 @@ function Write-Banner {
     Write-Host ""
     Write-Host "$m$([char]0x2554)$border$([char]0x2557)" -ForegroundColor Yellow
     Write-Host "$m$L$(Center-Text 'Art Tune Manual Installer' $w)$L" -ForegroundColor Yellow
-    Write-Host "$m$L$(Center-Text 'updated Mar 2026' $w)$L" -ForegroundColor Yellow
+    Write-Host "$m$L$(Center-Text 'updated Apr 2026' $w)$L" -ForegroundColor Yellow
     Write-Host "$m$L$(Center-Text "artiswar.io  $([char]0x2022)  v$script:Version" $w)$L" -ForegroundColor Yellow
     Write-Host "$m$L$blank$L" -ForegroundColor Yellow
     # YouTube line (Cyan interior, Yellow borders)
@@ -261,6 +261,7 @@ function Write-Completion {
         Write-Host (& $p "  $([char]0x2713) HeSuVi            [!] LEQ Control Panel") -ForegroundColor Yellow
         Write-Host (& $p "                         (download from GitHub)") -ForegroundColor Yellow
     }
+    Write-Host (& $p "  $([char]0x2713) JSFX Plugins")
     Write-Host (& $p "")
     Write-Host (& $p $s) -ForegroundColor DarkGray
     Write-Host (& $p "")
@@ -339,6 +340,7 @@ function Write-DeviceCompletion {
         Write-Host (& $p "  $([char]0x2713) HeSuVi            [!] LEQ Control Panel") -ForegroundColor Yellow
         Write-Host (& $p "                         (download from GitHub)") -ForegroundColor Yellow
     }
+    Write-Host (& $p "  $([char]0x2713) JSFX Plugins")
     if ($IncludeCreativeApp) {
         Write-Host (& $p "  $([char]0x2713) Creative App")
     }
@@ -2651,6 +2653,82 @@ function Install-ArtTuneHRIR {
     return $true
 }
 
+function Install-JsfxPlugins {
+    <#
+    .SYNOPSIS
+        Downloads and installs ArtTuneKit JSFX plugins into the ReaPlugs JS directory.
+    #>
+
+    $jsfxDir = Join-Path $env:ProgramFiles "VSTPlugins\ReaPlugs\JS\Effects\ArtTuneKit"
+    $file1 = Join-Path $jsfxDir "atk_spatial_engine.jsfx"
+    $file2 = Join-Path $jsfxDir "atk_stereo_spatial_enhancer.jsfx"
+
+    # Skip if both already installed
+    if ((Test-Path $file1) -and (Test-Path $file2)) {
+        Write-Host "$($script:BoxMargin)JSFX plugins already installed." -ForegroundColor Green
+        return $true
+    }
+
+    # Check ReaPlugs is installed
+    $reaPlugsDir = Join-Path $env:ProgramFiles "VSTPlugins\ReaPlugs"
+    if (-not (Test-Path $reaPlugsDir)) {
+        Write-Host "$($script:BoxMargin)WARNING: ReaPlugs not found. Install ReaPlugs first." -ForegroundColor Yellow
+        return $false
+    }
+
+    Write-Host "$($script:BoxMargin)Installing JSFX plugins..." -ForegroundColor Cyan
+
+    # Create target directory
+    New-Item -ItemType Directory -Path $jsfxDir -Force | Out-Null
+
+    # Download both files (same pattern as Get-HrirFile)
+    $baseUrl = "https://raw.githubusercontent.com/ArtIsWar/ArtTuneDB/main/jsfx"
+    $plugins = @(
+        @{ Name = "atk_spatial_engine.jsfx"; Dest = $file1 }
+        @{ Name = "atk_stereo_spatial_enhancer.jsfx";    Dest = $file2 }
+    )
+
+    foreach ($plugin in $plugins) {
+        $url = "$baseUrl/$($plugin.Name)"
+        $tempFile = Join-Path $script:TempPath "jsfx_$($plugin.Name)"
+
+        $job = Start-Job -ScriptBlock {
+            param($u, $o)
+            $ErrorActionPreference = 'Stop'
+            $ProgressPreference = 'SilentlyContinue'
+            Invoke-WebRequest -Uri $u -OutFile $o -UseBasicParsing -ErrorAction Stop
+        } -ArgumentList $url, $tempFile
+
+        Write-Wait -Message "Downloading $($plugin.Name)..." -Until { $job.State -ne 'Running' } -TimeoutSeconds 120 | Out-Null
+
+        if ($job.State -eq 'Failed') {
+            $err = Receive-Job $job -ErrorAction SilentlyContinue 2>&1
+            Remove-Job $job -Force -ErrorAction SilentlyContinue
+            Write-Host "$($script:BoxMargin)WARNING: Failed to download $($plugin.Name): $err" -ForegroundColor Yellow
+            return $false
+        }
+        Remove-Job $job -Force -ErrorAction SilentlyContinue
+
+        if (-not (Test-Path $tempFile) -or (Get-Item $tempFile).Length -eq 0) {
+            Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
+            Write-Host "$($script:BoxMargin)WARNING: $($plugin.Name) download failed or empty." -ForegroundColor Yellow
+            return $false
+        }
+
+        Copy-Item -Path $tempFile -Destination $plugin.Dest -Force
+        Remove-Item $tempFile -Force -ErrorAction SilentlyContinue
+    }
+
+    # Verify both files exist
+    if ((Test-Path $file1) -and (Test-Path $file2)) {
+        Write-Host "$($script:BoxMargin)JSFX plugins installed to $jsfxDir" -ForegroundColor Green
+        return $true
+    }
+
+    Write-Host "$($script:BoxMargin)WARNING: JSFX plugin verification failed." -ForegroundColor Yellow
+    return $false
+}
+
 function Write-InitialConfig {
     <#
     .SYNOPSIS
@@ -3005,6 +3083,7 @@ try {
         @{ Text = '[1] Install - Voicemeeter Setup (USB headphones, DAC, onboard audio)'; Color = 'White' }
         @{ Text = '[2] Install - Art Tune Approved Device'; Color = 'White' }
         @{ Text = '[3] Uninstall everything'; Color = 'White' }
+        @{ Text = '[j] Install JSFX plugins (existing setup, pre-S3 tune)'; Color = 'White' }
         @{ Text = '[t] Thank you - Credits & developer links'; Color = 'White' }
         @{ Text = '[b] artiswar.io - Something easier coming soon...'; Color = 'DarkGray' }
     )
@@ -3025,12 +3104,31 @@ try {
             Write-Host "$($script:BoxMargin)Opened in browser." -ForegroundColor Green
             continue mainMenu
         }
+        if ($selection -eq 'j' -or $selection -eq 'J') {
+            $reaPlugsDir = Join-Path $env:ProgramFiles "VSTPlugins\ReaPlugs"
+            if (-not (Test-Path $reaPlugsDir)) {
+                Write-Host ""
+                Write-Host "$($script:BoxMargin)ReaPlugs is not installed." -ForegroundColor Yellow
+                Write-Host "$($script:BoxMargin)Run a full install first (option 1 or 2)." -ForegroundColor Yellow
+                Write-Host ""
+                continue mainMenu
+            }
+            if (-not (Test-Path $script:TempPath)) {
+                New-Item -ItemType Directory -Path $script:TempPath -Force | Out-Null
+            }
+            $null = Install-JsfxPlugins
+            Remove-Item $script:TempPath -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Host ""
+            Write-Host "$($script:BoxMargin)Done. Press any key to return to the menu." -ForegroundColor Green
+            $null = $Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')
+            continue mainMenu
+        }
         $num = 0
         if ([int]::TryParse($selection, [ref]$num) -and $num -ge 1 -and $num -le 3) {
             $hwChoice = $num
             break
         }
-        Write-Host "$($script:BoxMargin)Invalid choice. Enter 1, 2, 3, b, or t." -ForegroundColor Red
+        Write-Host "$($script:BoxMargin)Invalid choice. Enter 1, 2, 3, j, b, or t." -ForegroundColor Red
     }
 
     if ($hwChoice -eq 3) {
@@ -3175,7 +3273,7 @@ try {
         }
 
         # Determine step count based on device
-        $totalSteps = if ($deviceChoice -eq 'soundblaster') { 6 } else { 5 }
+        $totalSteps = if ($deviceChoice -eq 'soundblaster') { 7 } else { 6 }
         $step = 0
 
         Write-Host ""
@@ -3188,6 +3286,8 @@ try {
         $step++; Write-Host "$($script:BoxMargin)Installing [$step/$totalSteps]..." -ForegroundColor Yellow
         $null = Install-ArtTuneHRIR
         $null = Write-InitialConfig
+        $step++; Write-Host "$($script:BoxMargin)Installing [$step/$totalSteps]..." -ForegroundColor Yellow
+        $null = Install-JsfxPlugins
 
         if ($deviceChoice -eq 'soundblaster') {
             $step++; Write-Host "$($script:BoxMargin)Installing [$step/$totalSteps]..." -ForegroundColor Yellow
@@ -3288,25 +3388,27 @@ try {
         }
 
         Write-Host ""
-        Write-Host "$($script:BoxMargin)Installing [1/8]..." -ForegroundColor Yellow
+        Write-Host "$($script:BoxMargin)Installing [1/9]..." -ForegroundColor Yellow
         if ($files.HiFiCable) { $null = Install-HiFiCable -ZipPath $files.HiFiCable }
-        Write-Host "$($script:BoxMargin)Installing [2/8]..." -ForegroundColor Yellow
+        Write-Host "$($script:BoxMargin)Installing [2/9]..." -ForegroundColor Yellow
         if ($files.Voicemeeter) { $null = Install-Voicemeeter -ZipPath $files.Voicemeeter }
-        Write-Host "$($script:BoxMargin)Installing [3/8]..." -ForegroundColor Yellow
+        Write-Host "$($script:BoxMargin)Installing [3/9]..." -ForegroundColor Yellow
         if ($files.ReaPlugs) { $null = Install-ReaPlugs -InstallerPath $files.ReaPlugs }
 
         # Rename-AudioEndpoints restarts audio services internally after reg import
-        Write-Host "$($script:BoxMargin)Installing [4/8]..." -ForegroundColor Yellow
+        Write-Host "$($script:BoxMargin)Installing [4/9]..." -ForegroundColor Yellow
         $null = Rename-AudioEndpoints
 
-        Write-Host "$($script:BoxMargin)Installing [5/8]..." -ForegroundColor Yellow
+        Write-Host "$($script:BoxMargin)Installing [5/9]..." -ForegroundColor Yellow
         if ($files.EAPO) { $null = Install-Eapo -InstallerPath $files.EAPO }
-        Write-Host "$($script:BoxMargin)Installing [6/8]..." -ForegroundColor Yellow
+        Write-Host "$($script:BoxMargin)Installing [6/9]..." -ForegroundColor Yellow
         if ($files.HeSuVi) { $null = Install-HeSuVi -InstallerPath $files.HeSuVi }
-        Write-Host "$($script:BoxMargin)Installing [7/8]..." -ForegroundColor Yellow
+        Write-Host "$($script:BoxMargin)Installing [7/9]..." -ForegroundColor Yellow
         $null = Install-ArtTuneHRIR
         $null = Write-InitialConfig
-        Write-Host "$($script:BoxMargin)Installing [8/8]..." -ForegroundColor Yellow
+        Write-Host "$($script:BoxMargin)Installing [8/9]..." -ForegroundColor Yellow
+        $null = Install-JsfxPlugins
+        Write-Host "$($script:BoxMargin)Installing [9/9]..." -ForegroundColor Yellow
         if ($files.SoundControl) {
             $null = Install-SoundControl -SourcePath $files.SoundControl
         } else {
@@ -3349,8 +3451,8 @@ try {
 # SIG # Begin signature block
 # MIIsZwYJKoZIhvcNAQcCoIIsWDCCLFQCAQExDzANBglghkgBZQMEAgEFADB5Bgor
 # BgEEAYI3AgEEoGswaTA0BgorBgEEAYI3AgEeMCYCAwEAAAQQH8w7YFlLCE63JNLG
-# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBfsTxHGYhRyJpH
-# +u5BmgAKw9y++9XWGIwYME8Ait078qCCJXYwggVvMIIEV6ADAgECAhBI/JO0YFWU
+# KX7zUQIBAAIBAAIBAAIBAAIBADAxMA0GCWCGSAFlAwQCAQUABCBrRyALx5nItxom
+# AW4QX387JBWr044t1lkM9xgKAqvefaCCJXYwggVvMIIEV6ADAgECAhBI/JO0YFWU
 # jTanyYqJ1pQWMA0GCSqGSIb3DQEBDAUAMHsxCzAJBgNVBAYTAkdCMRswGQYDVQQI
 # DBJHcmVhdGVyIE1hbmNoZXN0ZXIxEDAOBgNVBAcMB1NhbGZvcmQxGjAYBgNVBAoM
 # EUNvbW9kbyBDQSBMaW1pdGVkMSEwHwYDVQQDDBhBQUEgQ2VydGlmaWNhdGUgU2Vy
@@ -3555,33 +3657,33 @@ try {
 # Q29kZSBTaWduaW5nIENBIEVWIFIzNgIQU4YrScJSfkPEvu9qaUjyTTANBglghkgB
 # ZQMEAgEFAKCBhDAYBgorBgEEAYI3AgEMMQowCKACgAChAoAAMBkGCSqGSIb3DQEJ
 # AzEMBgorBgEEAYI3AgEEMBwGCisGAQQBgjcCAQsxDjAMBgorBgEEAYI3AgEVMC8G
-# CSqGSIb3DQEJBDEiBCCnJ+1cTb9R2zUC0SxA+50VqTL4Ty/NgSHU07xmCh1SojAN
-# BgkqhkiG9w0BAQEFAASCAgC7xTE6RQQ//i+DfwVKFWrc2txfzuaK+rmKd/QOw9ow
-# we95NY86f/6e++6aqk2Ui8TF7tIBye9vUZPHNY3ITM5/gxbWkreuDl2pUUzcKFki
-# eOXzBa76EmPGuroPoeo43dYLhcVQ3xxFy2vVquxehCBxOD88CLCdxT0QDaf0FQSu
-# sQG4s+33/UP/eJdubTyYlZWG3dW9ledT7vLLuoNwZbKnL15uDiz9tEN4c6SUd69S
-# FffXuApjjqdIu3ZTNA+OnRQDRVmjkl/K5gi7/v6hv7zQQM7+ju8MXxWGdTLANV9r
-# G//ghRYy4Pmt+mXXvhpOaf2XINvOesrVo03HmPVOQn1Igf876Pi59dc+8c5+PfLQ
-# ZRsuHNpn1xFrgj4GASD4XyKhf0avYcsn3R3GF6DmkxjmM+i8zBDf79aecsXLtu/j
-# XdexcbUFFLV5j+/cjdkUBfxTqxxakPLA+JNw0Y0Gz3zy14FJtTFZJ5rYe6KoNunD
-# qpelJdRcRwsPHMjemKznkU4uHR6x6i/ox2bNNWx2GMIYN2aDhTouUN8B+3C/bWYu
-# LRZRNvl43z2BO2Llt73luiCNjHcseyt4sHF+QgRHHYFZ072kAKpqh3bC9SIs75BN
-# rkDfbZh01dp7xeR6y3wSr7DYqKw6/RMaEt0UhXKGPmmjWk63qyT1UayPVFh0vTnX
-# gKGCAyYwggMiBgkqhkiG9w0BCQYxggMTMIIDDwIBATB9MGkxCzAJBgNVBAYTAlVT
+# CSqGSIb3DQEJBDEiBCBFPgPGXzH9xe+rAO4pCD7wz8igOxZkAsJIPAvJ7wwdaTAN
+# BgkqhkiG9w0BAQEFAASCAgB1XOpXCET7YHq0cAesgOOcdPLvdaVVFD7m+a82KF4Z
+# OXXt8r9SkeUKLqV5CKlXDGctqiYL4FI01PE2j+14LhNnSSCi+MJzlLnKDhEYNr4k
+# Qm9DPj/Hgxjc3EDwgIgbQxmVBmgi3Coi0A5ySgnjrxztKJ8lumLh0tKNs/kCtahD
+# r5Hf+kY0+1xXnHRvIr1yd/zxgtbbkVS08nuHjtRAvrFLXcEYgyAA+y6N0A4bhgdj
+# e6tca3e50pWq5VLrQvHVZBu8oVg9Bn/6QAWtKIDGXR7GFRIe6IUMiU9lMzBWtQP4
+# SzJOUVrH/WEZQVzOwV7jHrzqlx8r0Go2PKDYEKADvscAvrb32wemR5Tmd4qECcAQ
+# oCQWwR9yAvssXQ6jVH8/QIsFh1RezBOKXxLF114ZnqqtDZDA04iMfezPM0J0Pr5t
+# QIWZYwAd+pauMw5L49TAD5bTaxzRwfrIvX5gc6jUfwUCDLOOKKgo1ou4tPesZF35
+# vHFTfTEKpOkzL6o2kr2MghgqhQgQLww+26clvjIx4O+DC+h/ROOYixNeQ7B2qQMe
+# +XLLDsFkAM6TUBFSxKJ11fLyOHIeKd3qB2W/LtfgTxXHdPxj84oue1aPvQpidfVP
+# mKzzFASbBZlQ3OBWZKsGkcM8jQNwMSiUmo+SO6bTrlPjiDZUlzgrHltdEOljo06U
+# oKGCAyYwggMiBgkqhkiG9w0BCQYxggMTMIIDDwIBATB9MGkxCzAJBgNVBAYTAlVT
 # MRcwFQYDVQQKEw5EaWdpQ2VydCwgSW5jLjFBMD8GA1UEAxM4RGlnaUNlcnQgVHJ1
 # c3RlZCBHNCBUaW1lU3RhbXBpbmcgUlNBNDA5NiBTSEEyNTYgMjAyNSBDQTECEAqA
 # 7xhLjfEFgtHEdqeVdGgwDQYJYIZIAWUDBAIBBQCgaTAYBgkqhkiG9w0BCQMxCwYJ
-# KoZIhvcNAQcBMBwGCSqGSIb3DQEJBTEPFw0yNjAzMDgwMTQzNTZaMC8GCSqGSIb3
-# DQEJBDEiBCDfEkkRSwFkEJdIcZ2yucpQ+lJ8msnQ0nvP7Ew/qpOxbDANBgkqhkiG
-# 9w0BAQEFAASCAgC8djbidG9kmlutCFMSPZOHdfRk1hADNScyU33PmcNRnjMroPqy
-# NtdhgUVtN2juR8HtuBEnhITTy8IAQjhQqkuPMZ381l/mIwfI1WzZp0hVzDZesY4Q
-# uHGLgVWRpmu5p4PKxj34zN8ShKq2lKn4XQdJOxiqjiErXTnUkKNTrAiZnXAn5/Hh
-# gP3ySuuyxM9QTGq8zlCoLM+vkbJ/ujgUO6jnp5GPgvJSu9EIFKbFxd9Zj39lFgHE
-# 5ExAlkzQ04U44NfdXQNUJMXUHXiRSrdxIckb0SwdXF3juBAi9YbBPpWukbJwD0yg
-# 22VOhWFkzKhuhCenYc6KzBBfTJy5YFm4a9HEnrd6jxvVbwysUFLRHIn3K9eVfvjJ
-# 1wqwozLuHG776DEHODXyqyF+xhFgS1ueckt1wURf+z4ADdONkav1S0oVPqnmZ9dv
-# ikikbBgbNpw3AOZvTpSmYhQq9wv9x1rM5a3XydYdHCW8mf463wjFm/Cj1+46VCoZ
-# 9KXGRsW/x4cv0pyvP14Idgi7koOtiJ38JFA7/WzajAAZmtqxzRcCqDtofFw4Sxgy
-# XspgTiUxBcYhh/XCYwJMVDRddvq0gfT9Q9nXWT7C3A4oezYiHiRGQGphXHJ5AaeO
-# /ZT3/zYkxqAxagGBfl+f5cXYu4OFItnNsd6D9NgWOYI5OGSpfDhA3u5LCA==
+# KoZIhvcNAQcBMBwGCSqGSIb3DQEJBTEPFw0yNjA0MDUxODQyMzNaMC8GCSqGSIb3
+# DQEJBDEiBCD2XyK3fxlzQ13rfD8Hw2mXUJK7b2NqJE1uqPpSQsxv1jANBgkqhkiG
+# 9w0BAQEFAASCAgAjCFf8nQl1ySqs2IFeB3n5QOuK8aUTXR/JwQUFgmWeb6mzqX6x
+# s3JGLVyPVCwnS5tAJjTGkjcvcqjvbJ3tngJCLXKiz4QPF9BucojlLDCgX0IfyrNA
+# rSMRP8jX5rF580103M7avqcG2XrfwtH53NFZp52LuS7Qzgoie4zNki4QDdyV7ZK/
+# u80uLcsfdzEss7Q3Rxx0vNShjJjaTYJTHBfRGFDJ10DaAwDxLMQf4avJvidZJgbY
+# JkonJE2dKahVZN4FrOWyUsT/IgmxnGdyX+EJx0rM1I4rHtdy2hAIHcnHzghqcBZB
+# IRLRzaGeyjXbB73JW1LmdJeGF3ZdIgSpyfJ3ZpsJ5BH7jLWVzwPydjndX6lsanyk
+# sywi8p6qmtwNaJL8jrxFjzloQnz9dmYs9aVl9QyiV3mKz6FGsIsiH6waGA/OCqsg
+# ulZU6kdAQSjIRFb5n9yxcFKuwcvAZb1yFnG4lKGw3u9IlO49OHJUPyHnApCFNBSD
+# WdKz0H7enVHts1haIaf1UqiLk5TNVYURLcl89hhQ8Zfc4YWdAJnajjJtfyRIakgw
+# 56I5TW3K2NJ0mi/8605uxtfasymqwy3J0JRLrJaxBjk/Ktp9MwrF14NPZ9BAe8+l
+# EzKXXVFNpOL6QB2EbWMQw8UkU8y/AmZoW5g7pr2KCnNAcSvar00aTZKC3A==
 # SIG # End signature block
