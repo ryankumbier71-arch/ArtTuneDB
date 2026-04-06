@@ -1,5 +1,16 @@
 # 2026.04-AvalonEraUpdate
 
+## 2026.04.1 -- Treble Correction
+
+Adjusted all BO7 S3 pre-HeSuVi configs and the S3 target curve to correct unintended boosts in the high end/treble. HSC removed, AEQ Hi reduced across all variations.
+
+**What to do:**
+1. Download the updated release ZIP and drag the `library/` folder into ArtTuneDB, overwrite when prompted
+2. **Regenerate your headphone EQ** using the updated `BO7_Target_S3.txt` on squig.link -- the old EQ will have incorrect treble
+3. App users: delete any existing S3 profiles and recreate them in the profile wizard
+
+---
+
 ## BO7 Season 3 + Custom JSFX Plugins + Tune Variations
 
 ### What's New

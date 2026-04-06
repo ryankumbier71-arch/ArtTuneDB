@@ -1,8 +1,7 @@
-## 2026.04-AvalonEraUpdate
+### New  2026.04.1
+- Adjusted BO7 S3 prehesuvi files and BO7 S3 Target to adjust for unintended boosts in the high end/treble. Users need to delete any existing S3 profiles and recreate them in the profile wizard!
 
-### New
-- BO7 Season 3 tune: rebuilt audio chain with two custom JSFX plugins (ATK Spatial Engine, ATK Stereo Spatial Enhancer). Cleaner surround field, better footstep clarity, reduced gunfire fatigue.
-- Tune variations: Competitive (default), Clean, Streamer, Ultra. Each loads a different pre-HeSuVi config for a distinct sound signature. Swap the pre file in config.txt to change flavor.
-- JSFX plugins: custom audio processing plugins included in jsfx/ folder. Install script option [j] installs them automatically for existing users. New installs include them by default.
-- Updated install script with JSFX plugin support and signed execution.
-- Steelseries Arctis Pro Wired + Wireless measurements added.
+## 2026.04
+- BO7 Season 3 tune: rebuilt audio chain with custom JSFX plugins (ATK Spatial Engine, ATK Stereo Spatial Enhancer). Cleaner surround field, better footstep clarity, reduced gunfire fatigue.
+- Tune variations: multiple pre-HeSuVi config options for BO7 S3. Select a variation from the status bar or right-click a supported profile for a different audio flavor.
+- JSFX plugin delivery: custom plugins included in library and deployed automatically during setup, repair, and updates.
